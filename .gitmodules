@@ -1,0 +1,6 @@
+[submodule "restbase"]
+	path = restbase
+	url = https://github.com/docker-mediawiki/restbase.git
+[submodule "parsoid"]
+	path = parsoid
+	url = https://github.com/docker-mediawiki/parsoid.git

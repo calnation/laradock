@@ -5,9 +5,93 @@ services:
 ### Applications Code Container #############################
 
     applications:
-      image: tianon/true
+    #  restart: always
+      build: ./mediawiki
+      command: [ "sleep", "9" ]
+#      entrypoint: /var/www/init.sh
+      container_name: mw-app
       volumes:
-        - ${APPLICATION}:/var/www
+        - app_vol_mw:/app/mediawiki
+      environment:
+        - PHP_IDE_CONFIG=${PHP_IDE_CONFIG}
+        - MW_DB_SERVER=${MW_DB_SERVER}
+        - MW_INSTALL_PATH=/var/www/mediawiki
+        - IP=${MW_INSTALL_PATH}
+        - MW_DB_NAME=${PERCONA_DATABASE}
+        - MW_DB_PASSWORD=${PERCONA_PASSWORD}
+        - MW_DB_PORT=${PERCONA_PORT}
+        - MW_DB_PREFIX=${MW_DB_PREFIX}
+        - MW_DB_TABLE_OPTIONS=${MW_DB_TABLE_OPTIONS}
+        - MW_DB_TYPE=${MW_DB_TYPE}
+        - MW_DB_USER=${PERCONA_USER}
+        - MW_DEFAULT_SKIN=${MW_DEFAULT_SKIN}
+        - MW_EMERGENCY_CONTACT=${ADMIN_EMAIL}
+        - MW_ENABLE_DEBUG=${MW_ENABLE_DEBUG}
+        - MW_ENABLE_HTTPS=${MW_ENABLE_HTTPS}
+        - MW_ENABLE_SMTP=${MW_ENABLE_SMTP}
+        - MW_ENABLE_UPLOADS=${MW_ENABLE_UPLOADS}
+        - MW_LANGUAGE_CODE=${MW_LANGUAGE_CODE}
+        - MW_MAX_UPLOAD_SIZE=${MW_MAX_UPLOAD_SIZE}
+        - MW_META_NAMESPACE=${MW_SITENAME}
+        - MW_PASSWORD_SENDER=${MW_PASSWORD_SENDER}
+        - MW_SECRET_KEY=${MW_SECRET_KEY}
+        - MW_SERVER=${MW_SERVER}
+        - MW_SHARED_DB=${MW_SHARED_DB}
+        - MW_SITENAME=${MW_SITENAME}
+        - MW_SMTP_AUTH=${SMTP_AUTH}
+        - MW_SMTP_HOST=${SMTP_HOST}
+        - MW_SMTP_IDHOST=${SMTP_IDHOST}
+        - MW_SMTP_PASSWORD=${SMTP_PASSWORD}
+        - MW_SMTP_PORT=${SMTP_PORT}
+        - MW_SMTP_SSL_VERIFY_PEER=${SMTP_SSL_VERIFY_PEER}
+        - MW_SMTP_USERNAME=${SMTP_USERNAME}
+        - MW_UPGRADE_KEY=${MW_UPGRADE_KEY}
+        - TZ=${TIMEZONE}
+#      networks:
+#        frontend:
+#          ipv4_address: 172.27.1.2
+
+### MediaWiki Extensions Container #############################
+
+    mw-extensions:
+    #  restart: always
+      build: ./mediawiki-extensions
+      command: [ "sleep", "9" ]
+      container_name: mw-app-ext
+      volumes:
+        - app_vol_mw_ext:/app/mediawiki/extensions
+        - app_vol_mw_skin:/app/mediawiki/skins
+      depends_on:
+        - applications
+      environment:
+        - PHP_IDE_CONFIG=${PHP_IDE_CONFIG}
+
+### parsoid Container ####################################
+
+    parsoid:
+      restart: unless-stopped
+      build: ./parsoid
+      container_name: mw-parsoid
+      environment:
+        APP_URL: ${APP_URL}
+      hostname: parsoid
+      links:
+        - php-fpm
+      networks:
+        - frontend
+
+### restbase Container ####################################
+
+    restbase:
+      restart: unless-stopped
+      build: ./restbase
+      container_name: mw-restbase
+      environment:
+        APP_URL: ${APP_URL}
+      links:
+        - php-fpm
+      networks:
+        - frontend
 
 ### Workspace Utilities Container ###########################
 
@@ -24,7 +108,7 @@ services:
           - INSTALL_YARN=${WORKSPACE_INSTALL_YARN}
           - INSTALL_DRUSH=${WORKSPACE_INSTALL_DRUSH}
           - INSTALL_AEROSPIKE_EXTENSION=${WORKSPACE_INSTALL_AEROSPIKE_EXTENSION}
-          - INSTALL_V8JS_EXTENSION=${WORKSPACE_INSTALL_V8JS_EXTENSION}
+          - INSTALL_V8JS_EXTENSION=${WORKSPACE_INSTALL_INSTALL_V8JS_EXTENSION}
           - COMPOSER_GLOBAL_INSTALL=${WORKSPACE_COMPOSER_GLOBAL_INSTALL}
           - INSTALL_WORKSPACE_SSH=${WORKSPACE_INSTALL_WORKSPACE_SSH}
           - INSTALL_LARAVEL_ENVOY=${WORKSPACE_INSTALL_LARAVEL_ENVOY}
@@ -35,7 +119,7 @@ services:
           - PGID=${WORKSPACE_PGID}
           - NODE_VERSION=${WORKSPACE_NODE_VERSION}
           - YARN_VERSION=${WORKSPACE_YARN_VERSION}
-          - TZ=${WORKSPACE_TIMEZONE}
+          - TZ=${TIMEZONE}
           - BLACKFIRE_CLIENT_ID=${BLACKFIRE_CLIENT_ID}
           - BLACKFIRE_CLIENT_TOKEN=${BLACKFIRE_CLIENT_TOKEN}
         dockerfile: "Dockerfile-${PHP_VERSION}"
@@ -53,14 +137,21 @@ services:
 ### PHP-FPM Container #######################################
 
     php-fpm:
+#      restart: always
+      container_name: mw-php-fpm
+#      command: bash /var/www/init.sh
+#      entrypoint: ["php-fpm"]
+#      command: ["bash", "/var/www/runnables/init.sh"]
       build:
         context: ./php-fpm
         args:
           - INSTALL_XDEBUG=${PHP_FPM_INSTALL_XDEBUG}
           - INSTALL_BLACKFIRE=${INSTALL_BLACKFIRE}
+          - INSTALL_COMPOSER=${PHP_FPM_INSTALL_COMPOSER}
           - INSTALL_SOAP=${PHP_FPM_INSTALL_SOAP}
           - INSTALL_MONGO=${PHP_FPM_INSTALL_MONGO}
           - INSTALL_MSSQL=${PHP_FPM_INSTALL_MSSQL}
+          - INSTALL_NODE=${PHP_FPM_INSTALL_NODE}
           - INSTALL_ZIP_ARCHIVE=${PHP_FPM_INSTALL_ZIP_ARCHIVE}
           - INSTALL_BCMATH=${PHP_FPM_INSTALL_BCMATH}
           - INSTALL_PHPREDIS=${PHP_FPM_INSTALL_PHPREDIS}
@@ -68,23 +159,80 @@ services:
           - INSTALL_OPCACHE=${PHP_FPM_INSTALL_OPCACHE}
           - INSTALL_EXIF=${PHP_FPM_INSTALL_EXIF}
           - INSTALL_AEROSPIKE_EXTENSION=${PHP_FPM_INSTALL_AEROSPIKE_EXTENSION}
+          - INSTALL_V8JS_EXTENSION=${PHP_FPM_INSTALL_INSTALL_V8JS_EXTENSION}
+          - COMPOSER_GLOBAL_INSTALL=${PHP_FPM_COMPOSER_GLOBAL_INSTALL}
+          - INSTALL_SSH=${PHP_FPM_INSTALL_SSH}
+          - PUID=${PHP_FPM_PUID}
+          - PGID=${PHP_FPM_PGID}
+          - NODE_VERSION=${PHP_FPM_NODE_VERSION}
+          - TZ=${TIMEZONE}
+          - INSTALL_IMAGEMAGICK=${PHP_FPM_INSTALL_IMAGEMAGICK}
           - INSTALL_MYSQLI=${PHP_FPM_INSTALL_MYSQLI}
           - INSTALL_TOKENIZER=${PHP_FPM_INSTALL_TOKENIZER}
           - INSTALL_INTL=${PHP_FPM_INSTALL_INTL}
           - INSTALL_GHOSTSCRIPT=${PHP_FPM_INSTALL_GHOSTSCRIPT}
+          - INSTALL_NET_SMTP=${PHP_FPM_INSTALL_NET_SMTP}
+          - INSTALL_PCNTL=${PHP_FPM_INSTALL_PCNTL}
+          - INSTALL_APCU=${PHP_FPM_INSTALL_APCU}
+          - INSTALL_MBSTRING=${PHP_FPM_INSTALL_MBSTRING}
         dockerfile: "Dockerfile-${PHP_VERSION}"
-      volumes_from:
-        - applications
+      stdin_open: true
+      tty: true
       volumes:
+        - app_vol_mw:${MW_INSTALL_PATH}
+        - app_vol_mw_ext:${MW_INSTALL_PATH}/extensions
+        - app_vol_mw_skin:${MW_INSTALL_PATH}/skins
+        - ${MW_SETTINGS_PATH}:${MW_INSTALL_PATH}/settings.d
+        - ./mediawiki/runnables:${MW_INSTALL_PATH}/runnables
+        - ./mediawiki-extensions/ext_settings.d/:${MW_INSTALL_PATH}/ext_settings.d
         - ./php-fpm/php${PHP_VERSION}.ini:/usr/local/etc/php/php.ini
       expose:
         - "9000"
       depends_on:
-        - workspace
+        - applications
+        - percona
       extra_hosts:
         - "dockerhost:${DOCKER_HOST_IP}"
+      ports:
+        - "${PHP_FPM_SSH_PORT}:22"
+        - 4881:4881
       environment:
         - PHP_IDE_CONFIG=${PHP_IDE_CONFIG}
+        - MW_DB_PREFIX=${MW_DB_PREFIX}
+        - MW_DB_SERVER=${MW_DB_SERVER}
+        - IP=${MW_INSTALL_PATH}
+        - MW_DB_NAME=${PERCONA_DATABASE}
+        - MW_DB_PASSWORD=${PERCONA_PASSWORD}
+        - MW_DB_PORT=${PERCONA_PORT}
+        - MW_DB_USER=${PERCONA_USER}
+        - MW_EMERGENCY_CONTACT=${ADMIN_EMAIL}
+        - MW_DB_TABLE_OPTIONS=${MW_DB_TABLE_OPTIONS}
+        - MW_DB_TYPE=${MW_DB_TYPE}
+        - MW_DEFAULT_SKIN=${MW_DEFAULT_SKIN}
+        - MW_ENABLE_DEBUG=${MW_ENABLE_DEBUG}
+        - MW_ENABLE_HTTPS=${MW_ENABLE_HTTPS}
+        - MW_ENABLE_SMTP=${MW_ENABLE_SMTP}
+        - MW_ENABLE_UPLOADS=${MW_ENABLE_UPLOADS}
+        - MW_INSTALL_PATH=${MW_INSTALL_PATH}
+        - MW_LANGUAGE_CODE=${MW_LANGUAGE_CODE}
+        - MW_MAX_UPLOAD_SIZE=${MW_MAX_UPLOAD_SIZE}
+        - MW_META_NAMESPACE=${MW_SITENAME}
+        - MW_PASSWORD_SENDER=${MW_PASSWORD_SENDER}
+        - MW_SECRET_KEY=${MW_SECRET_KEY}
+        - MW_SERVER=${MW_SERVER}
+        - MW_SHARED_DB=${MW_SHARED_DB}
+        - MW_SITENAME=${MW_SITENAME}
+        - MW_UPGRADE_KEY=${MW_UPGRADE_KEY}
+        - MW_ADMIN=${MW_ADMIN}
+        - MW_SETTINGS_PATH=${MW_SETTINGS_PATH}
+        - MW_SMTP_AUTH=${SMTP_AUTH}
+        - MW_SMTP_HOST=${SMTP_HOST}
+        - MW_SMTP_IDHOST=${SMTP_IDHOST}
+        - MW_SMTP_PASSWORD=${SMTP_PASSWORD}
+        - MW_SMTP_PORT=${SMTP_PORT}
+        - MW_SMTP_SSL_VERIFY_PEER=${SMTP_SSL_VERIFY_PEER}
+        - MW_SMTP_USERNAME=${SMTP_USERNAME}
+        - TZ=${TIMEZONE}
       networks:
         - backend
 
@@ -103,23 +251,113 @@ services:
 ### Nginx Server Container ##################################
 
     nginx:
+#      restart: unless-stopped
+      container_name: mw-nginx
       build:
         context: ./nginx
         args:
           - PHP_UPSTREAM=php-fpm
-      volumes_from:
-        - applications
       volumes:
+        - app_vol_mw:${MW_INSTALL_PATH}
+        - app_vol_mw_ext:${MW_INSTALL_PATH}/extensions
+        - app_vol_mw_skin:${MW_INSTALL_PATH}/skins
+        - ${MW_SETTINGS_PATH}:${MW_INSTALL_PATH}/settings.d
+        - ./mediawiki-extensions/ext_settings.d/:${MW_INSTALL_PATH}/ext_settings.d
         - ${NGINX_HOST_LOG_PATH}:/var/log/nginx
         - ${NGINX_SITES_PATH}:/etc/nginx/sites-available
+      environment:
+        - MW_DB_SERVER=${MW_DB_SERVER}
+        - MW_INSTALL_PATH=${MW_INSTALL_PATH}
+        - IP=${MW_INSTALL_PATH}
+        - MW_DB_NAME=${PERCONA_DATABASE}
+        - MW_DB_PASSWORD=${PERCONA_PASSWORD}
+        - MW_DB_PORT=${PERCONA_PORT}
+        - MW_DB_PREFIX=${MW_DB_PREFIX}
+        - MW_DB_TABLE_OPTIONS=${MW_DB_TABLE_OPTIONS}
+        - MW_DB_TYPE=${MW_DB_TYPE}
+        - MW_DB_USER=${PERCONA_USER}
+        - MW_DEFAULT_SKIN=${MW_DEFAULT_SKIN}
+        - MW_EMERGENCY_CONTACT=${ADMIN_EMAIL}
+        - MW_ENABLE_DEBUG=${MW_ENABLE_DEBUG}
+        - MW_ENABLE_HTTPS=${MW_ENABLE_HTTPS}
+        - MW_ENABLE_SMTP=${MW_ENABLE_SMTP}
+        - MW_ENABLE_UPLOADS=${MW_ENABLE_UPLOADS}
+        - MW_LANGUAGE_CODE=${MW_LANGUAGE_CODE}
+        - MW_MAX_UPLOAD_SIZE=${MW_MAX_UPLOAD_SIZE}
+        - MW_META_NAMESPACE=${MW_SITENAME}
+        - MW_PASSWORD_SENDER=${MW_PASSWORD_SENDER}
+        - MW_SECRET_KEY=${MW_SECRET_KEY}
+        - MW_SERVER=${MW_SERVER}
+        - MW_SHARED_DB=${MW_SHARED_DB}
+        - MW_SITENAME=${MW_SITENAME}
+        - MW_SMTP_AUTH=${SMTP_AUTH}
+        - MW_SMTP_HOST=${SMTP_HOST}
+        - MW_SMTP_IDHOST=${SMTP_IDHOST}
+        - MW_SMTP_PASSWORD=${SMTP_PASSWORD}
+        - MW_SMTP_PORT=${SMTP_PORT}
+        - MW_SMTP_SSL_VERIFY_PEER=${SMTP_SSL_VERIFY_PEER}
+        - MW_SMTP_USERNAME=${SMTP_USERNAME}
+        - MW_UPGRADE_KEY=${MW_UPGRADE_KEY}
+        - MW_UPLOAD_BASE_URL=${MW_UPLOAD_BASE_URL}
+        - TZ=${TIMEZONE}
       ports:
         - "${NGINX_HOST_HTTP_PORT}:80"
         - "${NGINX_HOST_HTTPS_PORT}:443"
       depends_on:
         - php-fpm
+#    - parsoid
       networks:
         - frontend
         - backend
+#        - proxy-tier
+
+### Nginx Reverse Proxy Container ##################################
+
+#    nginx-gen:
+#      image: jwilder/docker-gen
+#      container_name: nginx-gen
+#      volumes:
+#        - "/var/run/docker.sock:/tmp/docker.sock:ro"
+#        - "../../../volumes/proxy/templates/nginx-compose-v2.tmpl:/etc/docker-gen/templates/nginx.tmpl:ro"
+#      volumes_from:
+#        - nginx
+#      entrypoint: /usr/local/bin/docker-gen -notify-sighup nginx -watch -only-exposed -wait 5s:30s /etc/docker-gen/templates/nginx.tmpl /etc/nginx/conf.d/default.conf
+
+### Nginx Reverse Proxy Container ##################################
+
+#    letsencrypt-nginx-proxy-companion:
+#      image: jrcs/letsencrypt-nginx-proxy-companion
+#      container_name: letsencrypt-nginx-proxy-companion
+#      volumes_from:
+#        - nginx
+#      volumes:
+#        - "/var/run/docker.sock:/var/run/docker.sock:ro"
+#        - "../../../volumes/proxy/certs:/etc/nginx/certs:rw"
+#      environment:
+#        - NGINX_DOCKER_GEN_CONTAINER=nginx-gen
+
+### Nginx Reverse Proxy Container ##################################
+
+#    nginx-reverse:
+#      restart: unless-stopped
+#      container_name: mw-nginx-reverse
+#      build:
+#        context: ./nginx-reverse
+#        args:
+#          - USE_SSL=${USE_SSL}
+#      volumes:
+#        - /root/nginx/ssl:/etc/nginx/certs
+#        - /root/nginx/htpasswd:/etc/nginx/htpasswd
+#        - /var/run/docker.sock:/tmp/docker.sock:ro
+#      ports:
+#        - "${NGINX_HOST_HTTP_PORT}:80"
+#        - "${NGINX_HOST_HTTPS_PORT}:443"
+#      depends_on:
+#        - php-fpm
+#        - applications
+#      networks:
+#        - frontend
+#        - backend
 
 ### Blackfire Container #################################
 
@@ -185,6 +423,8 @@ services:
 ### MySQL Container #########################################
 
     mysql:
+      container_name: mw-db
+#      restart: unless-stopped
       build:
         context: ./mysql
       environment:
@@ -194,6 +434,8 @@ services:
         - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
       volumes:
         - ${DATA_SAVE_PATH}/mysql:/var/lib/mysql
+#        - convoy_db_vol:/var/lib/mysql
+#      volume_driver: convoy
       ports:
         - "${MYSQL_PORT}:3306"
       networks:
@@ -235,9 +477,13 @@ services:
 ### MariaDB Container #######################################
 
     mariadb:
+#      restart: unless-stopped
+      container_name: mw-db
       build: ./mariadb
       volumes:
         - ${DATA_SAVE_PATH}/mariadb:/var/lib/mysql
+#        - convoy_db_vol:/var/lib/mysql
+#      volume_driver: convoy
       ports:
         - "${MARIADB_PORT}:3306"
       environment:
@@ -569,18 +815,33 @@ services:
         - ${JENKINS_HOME}:/var/jenkins_home
         - /var/run/docker.sock:/var/run/docker.sock
 
-### Networks Setup ############################################
+### xhgui ###################################################
 
+   xhgui:
+     image: tehes/docker-xhgui
+     ports:
+       - "8040:80"
+     links:
+       - mongo
+
+### Networks Setup ############################################
 networks:
   frontend:
     driver: "bridge"
   backend:
     driver: "bridge"
+#  proxy-tier:
+#    external:
+#      name: nginx-proxy
 
 ### Volumes Setup #############################################
 
 volumes:
-  mysql:
+  app_vol_mw:
+    driver: "local"
+  app_vol_mw_ext:
+    driver: "local"
+  app_vol_mw_skin:
     driver: "local"
   percona:
     driver: "local"

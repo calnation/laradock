@@ -508,6 +508,8 @@ RUN if [ ${INSTALL_SYMFONY} = true ]; then \
 
 ;fi
 
+USER laradock
+
 #
 #--------------------------------------------------------------------------
 # Final Touch
