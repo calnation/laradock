@@ -186,6 +186,7 @@ services:
         - ./mediawiki/runnables:${MW_INSTALL_PATH}/runnables
         - ./mediawiki-extensions/ext_settings.d/:${MW_INSTALL_PATH}/ext_settings.d
         - ./php-fpm/php${PHP_VERSION}.ini:/usr/local/etc/php/php.ini
+#        - ./php-fpm/conf/php${PHP_VERSION}:/etc/php/conf.d
       expose:
         - "9000"
       depends_on:
